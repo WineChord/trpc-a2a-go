@@ -1,8 +1,8 @@
-// Tencent is pleased to support the open source community by making a2a-go available.
+// Tencent is pleased to support the open source community by making trpc-a2a-go available.
 //
 // Copyright (C) 2025 THL A29 Limited, a Tencent company.  All rights reserved.
 //
-// a2a-go is licensed under the Apache License Version 2.0.
+// trpc-a2a-go is licensed under the Apache License Version 2.0.
 
 // Package server provides the A2A server implementation.
 package server
@@ -17,12 +17,12 @@ import (
 	"net/http"
 	"time"
 
-	"trpc.group/trpc-go/a2a-go/auth"
-	"trpc.group/trpc-go/a2a-go/internal/sse"
-	"trpc.group/trpc-go/a2a-go/jsonrpc"
-	"trpc.group/trpc-go/a2a-go/log"
-	"trpc.group/trpc-go/a2a-go/protocol"
-	"trpc.group/trpc-go/a2a-go/taskmanager"
+	"trpc.group/trpc-go/trpc-a2a-go/auth"
+	"trpc.group/trpc-go/trpc-a2a-go/internal/jsonrpc"
+	"trpc.group/trpc-go/trpc-a2a-go/internal/sse"
+	"trpc.group/trpc-go/trpc-a2a-go/log"
+	"trpc.group/trpc-go/trpc-a2a-go/protocol"
+	"trpc.group/trpc-go/trpc-a2a-go/taskmanager"
 )
 
 // A2AServer implements the HTTP server for the A2A protocol.
@@ -388,8 +388,9 @@ func (s *A2AServer) handleSSEStream(
 					TaskID: taskID,
 					Reason: "task ended",
 				}
-				if err := sse.FormatEvent(w, protocol.EventClose, closeData); err != nil {
-					log.Errorf("Error writing SSE close event for task %s: %v", taskID, err)
+				// Use JSON-RPC format for the close event
+				if err := sse.FormatJSONRPCEvent(w, protocol.EventClose, requestID, closeData); err != nil {
+					log.Errorf("Error writing SSE JSON-RPC close event for task %s: %v", taskID, err)
 				} else {
 					flusher.Flush()
 				}
@@ -408,10 +409,10 @@ func (s *A2AServer) handleSSEStream(
 				continue // Skip unknown event types
 			}
 
-			// Write the event to the SSE stream.
-			if err := sse.FormatEvent(w, eventType, event); err != nil {
+			// Write the event to the SSE stream using JSON-RPC format.
+			if err := sse.FormatJSONRPCEvent(w, eventType, requestID, event); err != nil {
 				// Error writing, likely client disconnected.
-				log.Errorf("Error writing SSE event for task %s (client likely disconnected): %v. "+
+				log.Errorf("Error writing SSE JSON-RPC event for task %s (client likely disconnected): %v. "+
 					"Closing stream.", taskID, err)
 				return // Exit the handler.
 			}

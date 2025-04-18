@@ -1,8 +1,8 @@
-// Tencent is pleased to support the open source community by making a2a-go available.
+// Tencent is pleased to support the open source community by making trpc-a2a-go available.
 //
 // Copyright (C) 2025 THL A29 Limited, a Tencent company.  All rights reserved.
 //
-// a2a-go is licensed under the Apache License Version 2.0.
+// trpc-a2a-go is licensed under the Apache License Version 2.0.
 
 // Package sse provides a reader for Server-Sent Events (SSE).
 package sse
@@ -14,7 +14,8 @@ import (
 	"fmt"
 	"io"
 
-	"trpc.group/trpc-go/a2a-go/log"
+	"trpc.group/trpc-go/trpc-a2a-go/internal/jsonrpc"
+	"trpc.group/trpc-go/trpc-a2a-go/log"
 )
 
 // CloseEventData represents the data payload for a close event.
@@ -114,6 +115,29 @@ func FormatEvent(w io.Writer, eventType string, data interface{}) error {
 	// <empty line>
 	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, string(jsonData)); err != nil {
 		return fmt.Errorf("failed to write SSE event: %w", err)
+	}
+	return nil
+}
+
+// FormatJSONRPCEvent marshals the given data as a JSON-RPC response and writes
+// it to the writer in SSE format. The event type is used as the SSE event type.
+// The id parameter allows correlation with the original request.
+// It handles potential JSON marshaling errors.
+// Exported function.
+func FormatJSONRPCEvent(w io.Writer, eventType string, id interface{}, data interface{}) error {
+	// Create a JSON-RPC response with the data as the result
+	response := jsonrpc.NewNotificationResponse(id, data)
+	// Marshal the entire JSON-RPC envelope
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON-RPC SSE event data: %w", err)
+	}
+	// Format according to text/event-stream specification
+	// event: <eventType>
+	// data: <jsonrpc_envelope>
+	// <empty line>
+	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, string(jsonData)); err != nil {
+		return fmt.Errorf("failed to write JSON-RPC SSE event: %w", err)
 	}
 	return nil
 }

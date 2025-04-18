@@ -1,8 +1,8 @@
-// Tencent is pleased to support the open source community by making a2a-go available.
+// Tencent is pleased to support the open source community by making trpc-a2a-go available.
 //
 // Copyright (C) 2025 THL A29 Limited, a Tencent company.  All rights reserved.
 //
-// a2a-go is licensed under the Apache License Version 2.0.
+// trpc-a2a-go is licensed under the Apache License Version 2.0.
 
 // Package client provides a basic client implementation for the A2A protocol.
 package client
@@ -19,16 +19,16 @@ import (
 	"strings"
 	"time"
 
-	"trpc.group/trpc-go/a2a-go/auth"
-	"trpc.group/trpc-go/a2a-go/internal/sse"
-	"trpc.group/trpc-go/a2a-go/jsonrpc"
-	"trpc.group/trpc-go/a2a-go/log"
-	"trpc.group/trpc-go/a2a-go/protocol"
+	"trpc.group/trpc-go/trpc-a2a-go/auth"
+	"trpc.group/trpc-go/trpc-a2a-go/internal/jsonrpc"
+	"trpc.group/trpc-go/trpc-a2a-go/internal/sse"
+	"trpc.group/trpc-go/trpc-a2a-go/log"
+	"trpc.group/trpc-go/trpc-a2a-go/protocol"
 )
 
 const (
 	defaultTimeout   = 60 * time.Second
-	defaultUserAgent = "a2a-go-client/0.1"
+	defaultUserAgent = "trpc-a2a-go-client/0.1"
 )
 
 // A2AClient provides methods to interact with an A2A agent server.
@@ -241,6 +241,29 @@ func (c *A2AClient) processSSEStream(
 				)
 				return // Exit immediately, do not process any more events
 			}
+
+			// First, try to unmarshal as a JSON-RPC response
+			var jsonRPCResponse jsonrpc.RawResponse
+			jsonRPCErr := json.Unmarshal(eventBytes, &jsonRPCResponse)
+
+			// If this is a valid JSON-RPC response, extract the result for further processing
+			if jsonRPCErr == nil && jsonRPCResponse.JSONRPC == jsonrpc.Version {
+				log.Debugf(
+					"Received JSON-RPC wrapped event for task %s. Type: %s",
+					taskID, eventType,
+				)
+				// Check for errors in the JSON-RPC response
+				if jsonRPCResponse.Error != nil {
+					log.Errorf(
+						"JSON-RPC error in SSE event for task %s: %v",
+						taskID, jsonRPCResponse.Error,
+					)
+					continue // Skip events with JSON-RPC errors
+				}
+				// Use the result field directly for further processing
+				eventBytes = jsonRPCResponse.Result
+			}
+
 			// Deserialize the event data based on the event type from SSE.
 			var taskEvent protocol.TaskEvent
 			switch eventType {
